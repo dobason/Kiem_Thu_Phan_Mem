@@ -1,9 +1,0 @@
-﻿# Chỉ chặn thư mục node_modules
-node_modules
-
-# Các file rác
-npm-debug.log
-Dockerfile
-.dockerignore
-.git
-.gitignore
