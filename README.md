@@ -1,4 +1,4 @@
-# 🍚 FoodFast Delivery - Hệ thống Giao Các Món ăn Việt bằng Drone
+# 🍚 FoodFast Delivery 
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Build Status](https://img.shields.io/badge/Build-Passing-success)](https://github.com/PhucHungNhanba/CNPM_SGU.git)
