@@ -4,6 +4,7 @@ import axios from 'axios';
 import io from 'socket.io-client'; // Import Socket
 import { AuthContext } from '../context/AuthContext.jsx';
 import useVietMapGeocode from '../hooks/useVietMapGeocode';
+import useBranch from '../hooks/useBranch';
 
 const OrderPage = () => {
   const { id: orderId } = useParams();
@@ -15,23 +16,18 @@ const OrderPage = () => {
   const [error, setError] = useState(null);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
 
-
   const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
   const DELIVERY_URL = 'http://localhost:3005';
-  const ORDER_SOCKET_URL = 'http://10.0.0.77:3003';
+  const ORDER_SOCKET_URL = 'http://localhost:3003';
 
   // --- State mới cho Admin ---
   const [drones, setDrones] = useState([]);
   const [selectedDrone, setSelectedDrone] = useState('');
   const [processing, setProcessing] = useState(false); // Loading cho nút Admin
 
-
   // const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
   // const DELIVERY_URL = 'http://localhost:3005';
   // const ORDER_SOCKET_URL = 'http://localhost:3003'; // URL Socket Order
-
-  // Tọa độ giả lập (Mặc định HCM)
-  const restaurantLocation = [10.7626, 106.6602];
 
   const {
     data: geocodeData,
@@ -39,6 +35,12 @@ const OrderPage = () => {
     refetch: refetchGeocode,
     isFetched,
   } = useVietMapGeocode();
+
+  const { geocodeData: branchGeocodeData, refetch: refetchBranchGeocode } = useBranch();
+
+  const restaurantLocation = branchGeocodeData
+    ? [branchGeocodeData.lat, branchGeocodeData.lng]
+    : [10.7626, 106.6602];
 
   useEffect(() => {
     if (geocodeError && isFetched) {
@@ -60,7 +62,9 @@ const OrderPage = () => {
         if (formattedShippingAddress) {
           refetchGeocode(formattedShippingAddress);
         }
-
+        if (orderData?.branchId) {
+          refetchBranchGeocode(orderData.branchId);
+        }
         setOrder(orderData);
 
         // 2. Lấy thông tin chi nhánh
@@ -128,6 +132,7 @@ const OrderPage = () => {
         const { data: droneData } = await axios.get(`${DELIVERY_URL}/drones`);
         setDrones(droneData);
       }
+      window.location.reload();
     } catch (err) {
       alert('Lỗi khi cập nhật trạng thái.');
     } finally {
@@ -156,6 +161,7 @@ const OrderPage = () => {
       });
 
       alert('🚀 Đã kích hoạt Drone giao hàng!');
+      window.location.reload();
     } catch (error) {
       console.error('Lỗi giao hàng:', error);
       alert('Lỗi khi gọi Drone.');
@@ -177,6 +183,7 @@ const OrderPage = () => {
         }
       );
       alert('Thanh toán thành công! Đang chờ nhà hàng xác nhận.');
+      window.location.reload();
     } catch (error) {
       alert('Thanh toán thất bại.');
     } finally {
@@ -243,7 +250,7 @@ const OrderPage = () => {
       {/* Header & Back Link */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
         <Link
-          to={userInfo.isAdmin ? '/admin/orderlist' : '/myorders'}
+          to={userInfo.isAdmin ? '/admin/dashboard' : '/myorders'}
           className="text-gray-500 hover:text-indigo-600 font-medium flex items-center mb-4 md:mb-0 transition-colors"
         >
           <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -305,7 +312,7 @@ const OrderPage = () => {
                   </svg>
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-800">Thông tin cửa hàng</h2>
+                  <h2 className="text-lg font-bold text-gray-800">Thông tin chi nhánh</h2>
                   <p className="text-indigo-600 font-bold text-lg mt-1">{branchInfo.name}</p>
                   <div className="text-sm text-gray-600 mt-1 space-y-1">
                     <p className="flex items-center">
