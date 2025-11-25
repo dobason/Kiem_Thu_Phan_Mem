@@ -7,6 +7,7 @@ import { AuthContext } from '../context/AuthContext.jsx';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import useVietMapGeocode from '../hooks/useVietMapGeocode';
+import useBranch from '../hooks/useBranch';
 import LeafletRoutingLayer from '../components/LeafletRoutingLayer';
 
 // --- ĐỊNH NGHĨA CÁC ICON TÙY CHỈNH ---
@@ -52,14 +53,15 @@ const OrderTrackingPage = () => {
     isFetched,
   } = useVietMapGeocode();
 
+  const { branchData, geocodeData: branchGeocodeData, refetch: refetchBranchGeocode } = useBranch();
 
   // URL Socket
-  const ORDER_SOCKET_URL = 'http://10.0.0.77:3003';
+  const ORDER_SOCKET_URL = 'http://localhost:3003';
   const DELIVERY_SOCKET_URL = import.meta.env.VITE_DELIVERY_SOCKET_URL || 'http://localhost:3005';
 
-  // Tọa độ giả lập (Mặc định HCM)
-  const restaurantLocation = [10.7626, 106.6602];
-
+  const restaurantLocation = branchGeocodeData
+    ? [branchGeocodeData.lat, branchGeocodeData.lng]
+    : null;
 
   // // URL Socket
   // const ORDER_SOCKET_URL = 'http://localhost:3003';
@@ -85,6 +87,9 @@ const OrderTrackingPage = () => {
           data?.shippingAddress?.address + ', ' + data?.shippingAddress?.city;
         if (formattedShippingAddress) {
           refetchGeocode(formattedShippingAddress);
+        }
+        if (data?.branchId) {
+          refetchBranchGeocode(data.branchId);
         }
         setOrder(data);
         setOrderStatus(data.status);
@@ -180,7 +185,7 @@ const OrderTrackingPage = () => {
   return (
     <div className="container mx-auto p-4 md:p-8">
       <Link
-        to="/myorders"
+        to={userInfo.isAdmin ? '/admin/dashboard' : '/myorders'}
         className="text-indigo-600 hover:text-indigo-800 font-medium mb-4 inline-block"
       >
         &larr; Quay lại danh sách đơn hàng
@@ -206,10 +211,11 @@ const OrderTrackingPage = () => {
           </span>
         </div>
         <div className="text-xl font-medium text-gray-700">
+          Chi nhánh: <span className="font-bold text-indigo-600 ml-2">{branchData?.name}</span>
+        </div>
+        <div className="text-xl font-medium text-gray-700">
           Địa chỉ cần giao đến:{' '}
-          <span className="font-bold text-indigo-600 ml-2 animate-pulse">
-            {geocodeData?.display}
-          </span>
+          <span className="font-bold text-indigo-600 ml-2">{geocodeData?.display}</span>
         </div>
       </div>
 
@@ -229,9 +235,11 @@ const OrderTrackingPage = () => {
               attribution="&copy; OpenStreetMap contributors"
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <Marker position={restaurantLocation} icon={restaurantIcon}>
-              <Popup>📍 Nhà hàng</Popup>
-            </Marker>
+            {restaurantLocation && (
+              <Marker position={restaurantLocation} icon={restaurantIcon}>
+                <Popup>📍 Chi nhánh {branchData?.name}</Popup>
+              </Marker>
+            )}
             {geocodeData && (
               <Marker position={[geocodeData?.lat, geocodeData?.lng]} icon={homeIcon}>
                 <Popup>
@@ -242,7 +250,7 @@ const OrderTrackingPage = () => {
             <Marker position={driverLocation} icon={droneIcon}>
               <Popup>🚁 {droneId || 'Tài xế'}</Popup>
             </Marker>
-            {isFetched && geocodeData && (
+            {isFetched && geocodeData && restaurantLocation && (
               <LeafletRoutingLayer
                 from={restaurantLocation}
                 to={[geocodeData?.lat, geocodeData?.lng]}
@@ -255,12 +263,12 @@ const OrderTrackingPage = () => {
               {orderStatus === 'PENDING_PAYMENT'
                 ? '💳'
                 : orderStatus === 'PAID_WAITING_PROCESS'
-                  ? '⏳'
-                  : orderStatus === 'PREPARING'
-                    ? '👨‍🍳'
-                    : orderStatus === 'READY_TO_SHIP'
-                      ? '📦'
-                      : '⌛'}
+                ? '⏳'
+                : orderStatus === 'PREPARING'
+                ? '👨‍🍳'
+                : orderStatus === 'READY_TO_SHIP'
+                ? '📦'
+                : '⌛'}
             </div>
             {orderStatus && (
               <p className="text-xl font-bold text-center px-4 text-gray-700">

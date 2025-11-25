@@ -97,13 +97,15 @@ const Header = ({ currentBranch, onChangeBranch }) => {
                   </Link>
 
                   {/* Link Đơn hàng của tôi (User thường) */}
-                  <Link
-                    to="/myorders"
-                    className="block px-4 py-2 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
-                    onClick={() => setDropdownOpen(false)}
-                  >
-                    Đơn hàng của tôi
-                  </Link>
+                  {!userInfo.isAdmin && (
+                    <Link
+                      to="/myorders"
+                      className="block px-4 py-2 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
+                      onClick={() => setDropdownOpen(false)}
+                    >
+                      Đơn hàng của tôi
+                    </Link>
+                  )}
 
                   <div className="border-t my-1"></div>
 

@@ -115,8 +115,10 @@ services:
       context: ./foodfast-frontend
     container_name: foodfast-frontend
     ports:
-      - "5173:80"  # Port mặc định của Vite
-      # Hoặc "3000:3000" nếu app bạn config khác
+      - "5173:5173"  # Port mặc định của Vite
+    volumes:
+      - ./foodfast-frontend:/app
+      - /app/node_modules  # Prevent overwriting node_modules
     networks:
       - foodfast-network
 
