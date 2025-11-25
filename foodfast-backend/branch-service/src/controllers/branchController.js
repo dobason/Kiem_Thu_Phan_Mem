@@ -1,5 +1,5 @@
 import Branch from '../models/branchModel.js';
-import jwt from 'jsonwebtoken';
+
 
 // Tạo chi nhánh mới
 export const createBranch = async (req, res) => {

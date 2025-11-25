@@ -2,7 +2,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
-import paymentRoutes from './routes/paymentRoutes.js'; // Add .js
+import paymentRoutes from './src/routes/paymentRoutes.js'; // Add .js
 
 dotenv.config();
 const app = express();

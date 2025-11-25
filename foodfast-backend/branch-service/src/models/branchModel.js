@@ -35,4 +35,5 @@ const branchSchema = new mongoose.Schema({
 // [RẤT QUAN TRỌNG] Tạo chỉ mục 2dsphere cho tìm kiếm vị trí
 branchSchema.index({ location: '2dsphere' });
 
-export const Branch = mongoose.model('Branch', branchSchema);
+const Branch = mongoose.model('Branch', branchSchema);
+export default Branch;
