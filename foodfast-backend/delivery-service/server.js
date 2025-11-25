@@ -23,7 +23,7 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 // Mount Routes
-app.use('/api/delivery/drones', deliveryRoutes);
+app.use('/drones', deliveryRoutes);
 
 // --- HÀM HỖ TRỢ TÍNH TOÁN TỌA ĐỘ (QUAN TRỌNG) ---
 // Công thức: Điểm hiện tại = Điểm đầu + (Khoảng cách * % đã đi được)
