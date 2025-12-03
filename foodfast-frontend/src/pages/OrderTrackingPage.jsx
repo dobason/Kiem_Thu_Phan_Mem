@@ -224,9 +224,9 @@ const OrderTrackingPage = () => {
         className="mb-8 shadow-lg rounded-xl overflow-hidden border border-gray-200 bg-gray-50 relative"
         style={{ minHeight: '50vh' }}
       >
-        {isShipping && driverLocation ? (
+        {(isShipping && driverLocation) || (restaurantLocation && geocodeData) ? (
           <MapContainer
-            center={driverLocation}
+            center={driverLocation || restaurantLocation}
             zoom={14}
             scrollWheelZoom={true}
             style={{ height: '50vh', width: '100%' }}
@@ -247,9 +247,11 @@ const OrderTrackingPage = () => {
                 </Popup>
               </Marker>
             )}
-            <Marker position={driverLocation} icon={droneIcon}>
-              <Popup>🚁 {droneId || 'Tài xế'}</Popup>
-            </Marker>
+            {driverLocation && (
+              <Marker position={driverLocation} icon={droneIcon}>
+                <Popup>🚁 {droneId || 'Tài xế'}</Popup>
+              </Marker>
+            )}
             {isFetched && geocodeData && restaurantLocation && (
               <LeafletRoutingLayer
                 from={restaurantLocation}
@@ -263,12 +265,12 @@ const OrderTrackingPage = () => {
               {orderStatus === 'PENDING_PAYMENT'
                 ? '💳'
                 : orderStatus === 'PAID_WAITING_PROCESS'
-                ? '⏳'
-                : orderStatus === 'PREPARING'
-                ? '👨‍🍳'
-                : orderStatus === 'READY_TO_SHIP'
-                ? '📦'
-                : '⌛'}
+                  ? '⏳'
+                  : orderStatus === 'PREPARING'
+                    ? '👨‍🍳'
+                    : orderStatus === 'READY_TO_SHIP'
+                      ? '📦'
+                      : '⌛'}
             </div>
             {orderStatus && (
               <p className="text-xl font-bold text-center px-4 text-gray-700">

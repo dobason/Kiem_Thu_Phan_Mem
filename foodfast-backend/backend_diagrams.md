@@ -4,76 +4,99 @@
 
 ```mermaid
 erDiagram
-    User ||--o{ Order : places
-    User }|--|| Branch : manages
-    Branch ||--o{ Order : receives
-    Branch ||--o{ Inventory : has
-    Product ||--o{ Inventory : tracked_in
-    Product ||--o{ OrderItem : included_in
-    Order ||--|{ OrderItem : contains
-    Order }|--|| Drone : delivered_by
+    User ||--o{ Order : "places"
+    User |o--o| Branch : "manages (if admin)"
+    Branch ||--o{ Order : "receives"
+    Branch ||--o{ Inventory : "stocks"
+    Product ||--o{ Inventory : "tracked_in"
+    Product ||--o{ OrderItem : "referenced_in"
+    Order ||--|{ OrderItem : "contains"
+    Order }o--|| Drone : "assigned_to"
+    Order ||--|| ShippingAddress : "ships_to"
+    Order ||--o| PaymentResult : "has_payment"
 
     User {
-        ObjectId _id
+        ObjectId _id PK
         String name
         String email
         String password
         Boolean isAdmin
-        String branchId
+        String branchId FK "Nullable (Branch Admin)"
         String phone
     }
 
     Branch {
-        ObjectId _id
+        ObjectId _id PK
         String name
         String address
-        Object location
+        Object location "GeoJSON Point"
         String operatingHours
         String phoneNumber
     }
 
     Product {
-        ObjectId _id
+        ObjectId _id PK
         String name
         String description
         Number price
         String imageUrl
-        String category
+        String category "Enum"
     }
 
     Inventory {
-        ObjectId _id
-        ObjectId product
-        ObjectId branchId
+        ObjectId _id PK
+        ObjectId product FK
+        ObjectId branchId FK
         Number countInStock
         Boolean isAvailable
     }
 
     Order {
-        ObjectId _id
-        String userId
-        String branchId
-        Array orderItems
-        Object shippingAddress
+        ObjectId _id PK
+        String userId FK
+        String branchId FK
         String paymentMethod
-        String status
-        String droneId
+        Number itemsPrice
+        Number shippingPrice
         Number totalPrice
+        Boolean isPaid
+        Date paidAt
+        Boolean isDelivered
+        Date deliveredAt
+        String status "Enum"
+        String droneId FK "Nullable"
     }
 
     OrderItem {
         String name
         Number qty
         Number price
-        ObjectId product
+        String image
+        ObjectId product FK
+    }
+
+    ShippingAddress {
+        String fullName
+        String email
+        String address
+        String city
+        String phone
+        String country
+    }
+
+    PaymentResult {
+        String id
+        String status
+        String update_time
+        String email_address
     }
 
     Drone {
-        ObjectId _id
+        ObjectId _id PK
         String name
-        String status
+        String status "Enum"
         Number battery
-        String currentOrderId
+        String currentOrderId "Nullable"
         Object currentLocation
     }
 ```
