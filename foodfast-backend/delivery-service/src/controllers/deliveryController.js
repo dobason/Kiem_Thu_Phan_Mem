@@ -90,9 +90,11 @@ export const deleteDrone = async (req, res) => {
 export const getIdleDrones = async (req, res) => {
     try {
         // Tìm các drone có trạng thái rảnh
+        console.log('Querying for IDLE drones...');
         const drones = await Drone.find({
             status: { $in: ['IDLE', 'available'] }
         });
+        console.log(`Found ${drones.length} idle drones.`);
         res.json(drones);
     } catch (error) {
         console.error(error);

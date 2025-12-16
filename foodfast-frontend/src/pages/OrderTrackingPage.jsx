@@ -4,12 +4,22 @@ import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import io from 'socket.io-client';
 import { AuthContext } from '../context/AuthContext.jsx';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet'; // Đảm bảo đã import Leaflet
 import useVietMapGeocode from '../hooks/useVietMapGeocode';
 import useBranch from '../hooks/useBranch';
-import LeafletRoutingLayer from '../components/LeafletRoutingLayer';
+// import LeafletRoutingLayer from '../components/LeafletRoutingLayer';
 
+// Component to update map view
+const MapUpdater = ({ center }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (center && center.length === 2) {
+      map.setView(center, map.getZoom());
+    }
+  }, [center, map]);
+  return null;
+};
 // --- ĐỊNH NGHĨA CÁC ICON TÙY CHỈNH ---
 const droneIcon = new L.Icon({
   iconUrl: 'https://th.bing.com/th/id/OIP.QaleUwWt00f9ndpuwJLgGQHaF7?w=198&h=180&c=7&r=0&o=7&cb=ucfimgc2&dpr=1.1&pid=1.7&rm=3',
@@ -57,6 +67,7 @@ const OrderTrackingPage = () => {
 
   const ORDER_SOCKET_URL = 'http://localhost:3003';
   const DELIVERY_SOCKET_URL = import.meta.env.VITE_DELIVERY_SOCKET_URL || 'http://localhost:3005';
+  const DELIVERY_URL = import.meta.env.VITE_DELIVERY_API_URL || 'http://localhost:3005';
 
   const restaurantLocation = branchGeocodeData
     ? [branchGeocodeData.lat, branchGeocodeData.lng]
@@ -108,7 +119,6 @@ const OrderTrackingPage = () => {
     fetchInitialData();
 
     socketOrder.on('status_update', (data) => {
-      console.log('🔔 Order Status Update:', data);
       setOrderStatus(data.status);
       if (data.droneId) setDroneId(data.droneId);
 
@@ -120,7 +130,14 @@ const OrderTrackingPage = () => {
 
     socketDelivery.on('status_update', (data) => {
       console.log('🚁 Drone Moving:', data);
-      if (data.status) setOrderStatus(data.status);
+
+      // Fix for stale backend: Normalize status string
+      let normalizedStatus = data.status;
+      if (typeof normalizedStatus === 'string' && normalizedStatus.includes('Đang di chuyển')) {
+        normalizedStatus = 'DELIVERING';
+      }
+
+      if (normalizedStatus) setOrderStatus(normalizedStatus);
       if (data.location) {
         setDriverLocation([data.location.lat, data.location.lng]);
       }
@@ -143,9 +160,6 @@ const OrderTrackingPage = () => {
 
   // --- LOGIC TÍNH TOÁN TIẾN ĐỘ BAY (QUAN TRỌNG) ---
   useEffect(() => {
-    // Console log để debug xem dữ liệu có đủ không
-    // console.log("Checking progress...", { driverLocation, restaurantLocation, geocodeData, isShipping });
-
     if (driverLocation && restaurantLocation && geocodeData && isShipping) {
       try {
         const startPoint = L.latLng(restaurantLocation[0], restaurantLocation[1]);
@@ -198,15 +212,17 @@ const OrderTrackingPage = () => {
     }
 
     try {
-      await axios.post(`${DELIVERY_SOCKET_URL}/start-delivery`, {
+      await axios.post(`${DELIVERY_URL}/start-delivery`, {
         orderId,
-        startLocation: { lat: restaurantLocation[0], lng: restaurantLocation[1] },
-        endLocation: { lat: geocodeData.lat, lng: geocodeData.lng },
+        branchId: order?.branchId,
+        droneId: droneId || null,
+        startLocation: { lat: Number(restaurantLocation[0]), lng: Number(restaurantLocation[1]) },
+        endLocation: { lat: Number(geocodeData.lat), lng: Number(geocodeData.lng) },
       });
       alert("🚀 Đã kích hoạt Drone giao hàng!");
     } catch (err) {
       console.error("Lỗi start delivery:", err);
-      alert("Không thể kích hoạt giao hàng.");
+      alert("Không thể kích hoạt giao hàng: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -261,6 +277,17 @@ const OrderTrackingPage = () => {
             {getStatusMessage(orderStatus)}
           </span>
         </div>
+
+        {/* Nút Start/Resume Delivery cho Admin hoặc Debug */}
+        {['READY_TO_SHIP', 'DRONE_ASSIGNED'].includes(orderStatus) && (userInfo?.isAdmin || true) && (
+          <button
+            onClick={handleStartDelivery}
+            className="mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-full shadow-md transition transform hover:scale-105"
+          >
+            {orderStatus === 'DRONE_ASSIGNED' ? '🔄 Tiếp tục giao hàng (Debug)' : '🚀 Bắt đầu giao hàng'}
+          </button>
+        )}
+
         <div className="text-xl font-medium text-gray-700">
           Chi nhánh: <span className="font-bold text-indigo-600 ml-2">{branchData?.name}</span>
         </div>
@@ -269,18 +296,6 @@ const OrderTrackingPage = () => {
           <span className="font-bold text-indigo-600 ml-2">{geocodeData?.display}</span>
         </div>
       </div>
-
-      {/* Nút mô phỏng */}
-      {['READY_TO_SHIP', 'PREPARING', 'PAID_WAITING_PROCESS', 'CONFIRMED'].includes(orderStatus) && (
-        <div className="flex justify-center mb-6">
-          <button
-            onClick={handleStartDelivery}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition transform hover:scale-105 flex items-center gap-2"
-          >
-            🚀 Bắt đầu Giao Hàng (Mô phỏng)
-          </button>
-        </div>
-      )}
 
       {/* BẢN ĐỒ */}
       <div
@@ -294,6 +309,7 @@ const OrderTrackingPage = () => {
             scrollWheelZoom={true}
             style={{ height: '50vh', width: '100%' }}
           >
+            <MapUpdater center={driverLocation} />
             <TileLayer
               attribution="&copy; OpenStreetMap contributors"
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -315,9 +331,17 @@ const OrderTrackingPage = () => {
             )}
             {/* Đường đi */}
             {isFetched && geocodeData && restaurantLocation && (
-              <LeafletRoutingLayer
-                from={restaurantLocation}
-                to={[geocodeData?.lat, geocodeData?.lng]}
+              <Polyline
+                positions={[
+                  [Number(restaurantLocation[0]), Number(restaurantLocation[1])],
+                  [Number(geocodeData.lat), Number(geocodeData.lng)]
+                ]}
+                pathOptions={{
+                  color: 'blue',        // Màu xanh
+                  weight: 4,            // Độ dày
+                  dashArray: '10, 10',  // Nét đứt (tạo cảm giác đường bay)
+                  opacity: 0.6
+                }}
               />
             )}
           </MapContainer>

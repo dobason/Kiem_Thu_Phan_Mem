@@ -10,7 +10,7 @@ const droneSchema = new mongoose.Schema({
         type: String,
         required: true,
         // Sửa enum cho khớp với dữ liệu đã tạo trong Compass
-        enum: ['IDLE', 'BUSY', 'MAINTENANCE', 'available', 'busy'], 
+        enum: ['IDLE', 'BUSY', 'MAINTENANCE', 'available', 'busy'],
         default: 'IDLE',
     },
     battery: {

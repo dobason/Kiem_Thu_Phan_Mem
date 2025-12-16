@@ -7,7 +7,8 @@ import {
     getAllOrders,
     getMyOrders,
     assignDrone,
-    deleteOrder
+    deleteOrder,
+    getRevenueStats
 } from '../controllers/orderController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 
@@ -24,6 +25,9 @@ router.route('/myorders/:userId').get(protect, getMyOrders);
 
 // Thanh toán
 router.route('/:id/pay').put(protect, updateOrderToPaid);
+
+//Route thống kê
+router.route('/stats/revenue').get(protect, admin, getRevenueStats);
 
 // --- QUAN TRỌNG: BỎ PROTECT Ở 2 DÒNG NÀY ĐỂ DELIVERY SERVICE GỌI ĐƯỢC ---
 router.route('/:id/status').put(updateOrderStatus);     // <-- Bỏ protect, admin

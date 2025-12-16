@@ -41,6 +41,10 @@ const BranchModal = ({ onBranchSelected, forceOpen = false }) => {
     };
 
     const handleSelectBranch = (branch) => {
+        if(!branch.isActive){
+            return;
+        }
+
         // 1. Lưu vào Storage
         localStorage.setItem('selectedBranch', JSON.stringify(branch));
 
@@ -147,10 +151,13 @@ const BranchModal = ({ onBranchSelected, forceOpen = false }) => {
                                                     <span className="line-clamp-2">{branch.address}</span>
                                                 </div>
                                                 <div className="flex items-center gap-3 mt-2">
-                                                    <div className="flex items-center text-green-600 text-xs font-bold bg-green-50 px-2 py-1 rounded border border-green-100">
+                                                    {branch.isActive ? <div className="flex items-center text-green-600 text-xs font-bold bg-green-50 px-2 py-1 rounded border border-green-100">
                                                         <span className="mr-1">⏰</span>
                                                         {branch.operatingHours || '8:00 - 22:00'}
-                                                    </div>
+                                                    </div> : <div className="flex items-center text-red-600 text-xs font-bold bg-red-50 px-2 py-1 rounded border border-red-100">
+                                                        <span className="mr-1">⏰</span>
+                                                        Đã đóng cửa
+                                                    </div>}
                                                     <div className="flex items-center text-gray-500 text-xs font-medium bg-gray-100 px-2 py-1 rounded border border-gray-200">
                                                         <span className="mr-1">📞</span>
                                                         {branch.phoneNumber || 'Hotline'}
@@ -159,11 +166,11 @@ const BranchModal = ({ onBranchSelected, forceOpen = false }) => {
                                             </div>
 
                                             {/* Icon Check khi hover */}
-                                            <div className="absolute right-4 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 scale-50 group-hover:scale-100">
+                                            {branch.isActive && <div className="absolute right-4 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 scale-50 group-hover:scale-100">
                                                 <div className="bg-indigo-600 text-white p-2 rounded-full shadow-lg">
                                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
                                                 </div>
-                                            </div>
+                                            </div>}
                                         </div>
                                     </div>
                                 ))}

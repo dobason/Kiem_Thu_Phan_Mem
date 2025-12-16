@@ -17,8 +17,9 @@ const OrderPage = () => {
   const [paymentProcessing, setPaymentProcessing] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-  const DELIVERY_URL = 'http://localhost:3005';
+  const DELIVERY_URL = import.meta.env.VITE_DELIVERY_API_URL || 'http://localhost:3005';
   const ORDER_SOCKET_URL = 'http://localhost:3003';
+  const DELIVERY_SOCKET_URL = import.meta.env.VITE_DELIVERY_SOCKET_URL || 'http://localhost:3005';
 
   // --- State mới cho Admin ---
   const [drones, setDrones] = useState([]);
@@ -85,10 +86,10 @@ const OrderPage = () => {
           (orderData.status === 'READY_TO_SHIP' || orderData.status === 'PREPARING')
         ) {
           try {
-            const { data: droneData } = await axios.get(`${DELIVERY_URL}/drones`);
+            const { data: droneData } = await axios.get(`${DELIVERY_URL}/status/idle`);
             setDrones(droneData);
           } catch (err) {
-            console.error('Lỗi kết nối Delivery Service');
+            console.error('Lỗi kết nối Delivery Service:', err);
           }
         }
       } catch (err) {
@@ -99,22 +100,49 @@ const OrderPage = () => {
     };
     fetchOrder();
 
-    // --- TÍCH HỢP SOCKET REAL-TIME (Để tự cập nhật) ---
-    const socket = io(ORDER_SOCKET_URL);
-    socket.emit('join_order_room', orderId);
+    // --- TÍCH HỢP SOCKET REAL-TIME (Order & Delivery) ---
+    const socketOrder = io(ORDER_SOCKET_URL);
+    const socketDelivery = io(DELIVERY_SOCKET_URL); // Connect to Delivery Socket
 
-    socket.on('status_update', (data) => {
-      console.log('🔔 Realtime Update:', data);
+    socketOrder.emit('join_order_room', orderId);
+    socketDelivery.emit('join_order_room', orderId); // Join via Delivery Socket too
+
+    // Handle Order Service updates
+    socketOrder.on('status_update', (data) => {
+      console.log('🔔 Order Socket Update:', data);
       setOrder((prev) => ({
         ...prev,
         status: data.status,
-        droneId: data.droneId || prev.droneId,
-        isPaid: data.status === 'PAID_WAITING_PROCESS' ? true : prev.isPaid,
+        droneId: data.droneId || prev?.droneId,
+        isPaid: data.status === 'PAID_WAITING_PROCESS' ? true : prev?.isPaid,
       }));
     });
 
+    // Handle Delivery Service updates (Direct from Drone)
+    socketDelivery.on('status_update', (data) => {
+      console.log('🚁 Delivery Socket Update:', data);
+
+      let newStatus = data.status;
+      // Normalize 'Drone Moving' status if necessary
+      if (typeof newStatus === 'string' && newStatus.includes('Đang di chuyển')) {
+        newStatus = 'DELIVERING';
+      }
+
+      setOrder((prev) => {
+        // Prevent reverting status if already delivered
+        if (prev.status === 'DELIVERED' && newStatus !== 'DELIVERED') return prev;
+
+        return {
+          ...prev,
+          status: newStatus,
+          droneId: data.droneId || prev?.droneId,
+        };
+      });
+    });
+
     return () => {
-      socket.disconnect();
+      socketOrder.disconnect();
+      socketDelivery.disconnect();
     };
     // ------------------------------------------------
   }, [orderId, userInfo, API_URL]);
@@ -129,7 +157,7 @@ const OrderPage = () => {
 
       // Nếu chuyển sang READY_TO_SHIP -> Load drone ngay
       if (newStatus === 'READY_TO_SHIP') {
-        const { data: droneData } = await axios.get(`${DELIVERY_URL}/drones`);
+        const { data: droneData } = await axios.get(`${DELIVERY_URL}/status/idle`);
         setDrones(droneData);
       }
       window.location.reload();
@@ -155,6 +183,7 @@ const OrderPage = () => {
       // Gọi API bắt đầu giao hàng
       await axios.post(`${DELIVERY_URL}/start-delivery`, {
         orderId: order._id,
+        branchId: order.branchId,
         droneId: selectedDrone,
         startLocation: { lat: restaurantLocation[0], lng: restaurantLocation[1] },
         endLocation: geocodeData ? { lat: geocodeData.lat, lng: geocodeData.lng } : null,
@@ -164,7 +193,7 @@ const OrderPage = () => {
       window.location.reload();
     } catch (error) {
       console.error('Lỗi giao hàng:', error);
-      alert('Lỗi khi gọi Drone.');
+      alert(error.response?.data?.message || 'Lỗi khi gọi Drone.');
     } finally {
       setProcessing(false);
     }
@@ -370,7 +399,7 @@ const OrderPage = () => {
                       value={selectedDrone}
                       onChange={(e) => setSelectedDrone(e.target.value)}
                     >
-                      <option value="">-- Chọn Drone --</option>
+                      <option value=""> -- Chọn Drone -- </option>
                       {drones.map((d) => (
                         <option key={d._id} value={d._id}>
                           {d.name} (Pin: {d.battery}%)

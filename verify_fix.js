@@ -8,7 +8,7 @@ const verify = async () => {
         console.log('Data length:', res1.data.length);
 
         console.log('\nTesting access via API Gateway...');
-        const res2 = await axios.get('http://localhost:3000/api/delivery/drones');
+        const res2 = await axios.get('http://localhost:3000/api/delivery');
         console.log(`Gateway Access: ${res2.status} ${res2.statusText}`);
         console.log('Data length:', res2.data.length);
 

@@ -48,6 +48,12 @@ const AdminMenu = () => {
                     >
                         🏢 Chi Nhánh
                     </Link>
+                    <Link
+                        to="/admin/statistics"
+                        className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${isActive('/admin/statistics')}`}
+                    >
+                        📊 Thống kê
+                    </Link>
                 </div>
             </div>
         </div>

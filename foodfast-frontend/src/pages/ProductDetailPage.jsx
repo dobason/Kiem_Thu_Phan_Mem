@@ -29,7 +29,6 @@ const ProductDetailPage = () => {
     const handleAddToCart = () => {
         if (product) {
             addToCart(product);
-            alert('Đã thêm sản phẩm vào giỏ hàng!');
         }
     };
 

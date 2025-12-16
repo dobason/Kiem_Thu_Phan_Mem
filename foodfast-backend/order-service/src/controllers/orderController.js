@@ -22,7 +22,7 @@ export const createOrder = async (req, res) => {
 
         // Lặp qua từng sản phẩm để lấy giá gốc từ Product Service
         for (const item of orderItems) {
-            const productId = item.product || item.productId; 
+            const productId = item.product || item.productId;
             try {
                 const { data: productFromDB } = await axios.get(`${PRODUCT_SERVICE_URL}/${productId}`);
                 if (!productFromDB) continue;
@@ -132,14 +132,14 @@ export const updateOrderToPaid = async (req, res) => {
             order.isPaid = true;
             order.paidAt = Date.now();
             // Cập nhật trạng thái theo Pipeline: Đã thanh toán -> Chờ duyệt
-            order.status = 'PAID_WAITING_PROCESS'; 
-            
+            order.status = 'PAID_WAITING_PROCESS';
+
             const updatedOrder = await order.save();
-            
+
             // Bắn socket thông báo
             if (req.io) {
                 req.io.emit('admin_data_update');
-                req.io.to(req.params.id).emit('status_update', { 
+                req.io.to(req.params.id).emit('status_update', {
                     status: 'PAID_WAITING_PROCESS',
                     isPaid: true
                 });
@@ -161,15 +161,15 @@ export const updateOrderStatus = async (req, res) => {
         const order = await Order.findById(req.params.id);
         if (order) {
             order.status = req.body.status || order.status;
-            
+
             // --- THÊM validateModifiedOnly: true ---
             const updatedOrder = await order.save({ validateModifiedOnly: true });
             // ---------------------------------------
-            
+
             if (req.io) {
                 try {
                     req.io.emit('admin_data_update');
-                    req.io.to(req.params.id).emit('status_update', { 
+                    req.io.to(req.params.id).emit('status_update', {
                         status: updatedOrder.status,
                         droneId: updatedOrder.droneId
                     });
@@ -180,7 +180,7 @@ export const updateOrderStatus = async (req, res) => {
             res.status(404).json({ message: 'Không tìm thấy đơn hàng' });
         }
     } catch (error) {
-        console.error("Update Status Error:", error); 
+        console.error("Update Status Error:", error);
         res.status(500).json({ message: 'Server Error', error: error.message });
     }
 };
@@ -195,15 +195,15 @@ export const assignDrone = async (req, res) => {
             if (order.status === 'READY_TO_SHIP') {
                 order.status = 'DRONE_ASSIGNED';
             }
-            
+
             // --- THÊM validateModifiedOnly: true ĐỂ TRÁNH LỖI DỮ LIỆU CŨ ---
             const updatedOrder = await order.save({ validateModifiedOnly: true });
             // --------------------------------------------------------------
 
             if (req.io) {
-                req.io.to(req.params.id).emit('status_update', { 
+                req.io.to(req.params.id).emit('status_update', {
                     status: updatedOrder.status,
-                    droneId: updatedOrder.droneId 
+                    droneId: updatedOrder.droneId
                 });
             }
             res.json(updatedOrder);
@@ -223,16 +223,99 @@ export const deleteOrder = async (req, res) => {
         const order = await Order.findById(req.params.id);
         if (order) {
             await order.deleteOne();
-            
+
             if (req.io) {
-                 req.io.emit('admin_data_update'); // Báo Admin reload danh sách
+                req.io.emit('admin_data_update'); // Báo Admin reload danh sách
             }
-            
+
             res.json({ message: 'Đã xóa đơn hàng thành công' });
         } else {
             res.status(404).json({ message: 'Không tìm thấy đơn hàng' });
         }
     } catch (error) {
         res.status(500).json({ message: 'Lỗi server' });
+    }
+};
+
+export const getRevenueStats = async (req, res) => {
+    try {
+        const { startDate, endDate, branchId } = req.query;
+
+        // 1. Xử lý khung thời gian (Mặc định 30 ngày nếu không gửi lên)
+        const end = endDate ? new Date(endDate) : new Date();
+        const start = startDate ? new Date(startDate) : new Date(new Date().setDate(end.getDate() - 30));
+
+        // Đặt thời gian để lấy trọn vẹn ngày cuối cùng (23:59:59)
+        end.setHours(23, 59, 59, 999);
+        start.setHours(0, 0, 0, 0);
+
+        // 2. Tạo điều kiện lọc (Match Stage)
+        const matchStage = {
+            createdAt: { $gte: start, $lte: end },
+            // Logic doanh thu: Đã thanh toán HOẶC đã giao (trừ đơn hủy/chờ thanh toán)
+            $or: [
+                { isPaid: true },
+                { status: { $in: ['DELIVERED', 'COMPLETED'] } }
+            ],
+            status: { $ne: 'CANCELLED' } // Loại bỏ đơn hủy
+        };
+
+        // Nếu có lọc theo branchId (String)
+        if (branchId && branchId !== 'all') {
+            matchStage.branchId = branchId;
+        }
+
+        // 3. Thực hiện Aggregation
+        const stats = await Order.aggregate([
+            { $match: matchStage },
+
+            // Chuyển đổi branchId (String) sang ObjectId để Lookup sang collection 'branches'
+{
+                $addFields: {
+                    branchObjectId: { $toObjectId: "$branchId" } 
+                }
+            },
+
+            // Group dữ liệu
+            {
+                $group: {
+                    _id: {
+                        date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+                        branch: "$branchObjectId"
+                    },
+                    totalRevenue: { $sum: "$totalPrice" }, // Tổng doanh thu
+                    totalOrders: { $sum: 1 }               // Tổng số đơn
+                }
+            },
+
+            // Join với bảng branches để lấy tên chi nhánh
+            {
+                $lookup: {
+                    from: "branches", // Tên collection trong MongoDB (thường là số nhiều)
+                    localField: "_id.branch",
+                    foreignField: "_id",
+                    as: "branchInfo"
+                }
+            },
+            { $unwind: { path: "$branchInfo", preserveNullAndEmptyArrays: true } },
+
+            // Định dạng dữ liệu đầu ra
+            {
+                $project: {
+                    _id: 0,
+                    date: "$_id.date",
+                    branchName: { $ifNull: ["$branchInfo.name", "Unknown Branch"] },
+                    totalRevenue: 1,
+                    totalOrders: 1
+                }
+            },
+            { $sort: { date: 1 } } // Sắp xếp ngày tăng dần
+        ]);
+
+        res.json(stats);
+
+    } catch (error) {
+        console.error("Revenue Stats Error:", error);
+        res.status(500).json({ message: 'Lỗi server khi thống kê doanh thu', error: error.message });
     }
 };

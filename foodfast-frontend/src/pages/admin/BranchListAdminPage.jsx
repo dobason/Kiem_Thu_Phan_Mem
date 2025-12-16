@@ -1,12 +1,14 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import AdminMenu from '../../components/AdminMenu';
+import { AuthContext } from '../../context/AuthContext';
 
 const BranchListAdminPage = () => {
     const [branches, setBranches] = useState([]);
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
+    const { userInfo } = useContext(AuthContext);
 
     const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
@@ -25,6 +27,59 @@ const BranchListAdminPage = () => {
     useEffect(() => {
         fetchBranches();
     }, []);
+
+    const handleDeleteClick = async (branchId) => {
+        try {
+            // Kiểm tra đơn hàng của chi nhánh
+            const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
+            const { data: orders } = await axios.get(`${API_URL}/api/orders/all?branchId=${branchId}`, config);
+
+            if (orders && orders.length > 0) {
+                if (window.confirm("Chi nhánh này vẫn còn đơn hàng, không thể xóa, tạm thời đóng cửa chi nhánh")) {
+                    await axios.put(`${API_URL}/api/branches/${branchId}`, { isActive: false }, config);
+                    alert("Đã tạm đóng cửa chi nhánh");
+                    fetchBranches();
+                }
+            } else {
+                if (window.confirm("Bạn có chắc chắn muốn xóa chi nhánh này?")) {
+                    await axios.delete(`${API_URL}/api/branches/${branchId}`);
+                    alert("Đã xóa chi nhánh");
+                    fetchBranches();
+                }
+            }
+        } catch (error) {
+            console.error("Error checking orders or deleting branch", error);
+            alert("Có lỗi xảy ra khi xử lý yêu cầu");
+        }
+    };
+
+    const handleTempCloseClick = async (branchId) => {
+        if (window.confirm("Bạn có chắc chắn muốn tạm đóng cửa chi nhánh này?")) {
+            try {
+                const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
+                await axios.put(`${API_URL}/api/branches/${branchId}`, { isActive: false }, config);
+                alert("Đã tạm đóng cửa chi nhánh");
+                fetchBranches();
+            } catch (error) {
+                console.error("Error closing branch", error);
+                alert("Có lỗi xảy ra khi tạm đóng cửa");
+            }
+        }
+    };
+
+    const handleTempReopenClick = async (branchId) => {
+        if (window.confirm("Bạn có chắc chắn muốn mở cửa lại chi nhánh này?")) {
+            try {
+                const config = { headers: { Authorization: `Bearer ${userInfo.token}` } };
+                await axios.put(`${API_URL}/api/branches/${branchId}`, { isActive: true }, config);
+                alert("Đã mở cửa lại chi nhánh");
+                fetchBranches();
+            } catch (error) {
+                console.error("Error closing branch", error);
+                alert("Có lỗi xảy ra khi mở cửa lại");
+            }
+        }
+    };
 
     return (
         <>
@@ -48,6 +103,7 @@ const BranchListAdminPage = () => {
                                     <th className="py-3 px-6 text-left">Tên Chi Nhánh</th>
                                     <th className="py-3 px-6 text-left">Địa Chỉ</th>
                                     <th className="py-3 px-6 text-center">Tọa Độ</th>
+                                    <th className="py-3 px-6 text-center">Trạng Thái</th>
                                     <th className="py-3 px-6 text-center">Hành Động</th>
                                 </tr>
                             </thead>
@@ -56,6 +112,7 @@ const BranchListAdminPage = () => {
                                     <tr key={branch._id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
                                         <td className="py-3 px-6 text-left font-medium text-indigo-600">
                                             {branch.name}
+                                            {branch.isActive === false && <span className="ml-2 text-xs text-red-500">(Đã đóng cửa)</span>}
                                         </td>
                                         <td className="py-3 px-6 text-left">
                                             <p>{branch.address}</p>
@@ -63,6 +120,9 @@ const BranchListAdminPage = () => {
                                         </td>
                                         <td className="py-3 px-6 text-center font-mono text-xs">
                                             [{branch.location?.coordinates[1]}, {branch.location?.coordinates[0]}]
+                                        </td>
+                                        <td className="py-3 px-6 text-center font-mono text-xs">
+                                            {branch.isActive ? <span className="text-green-500">Đang hoạt động</span> : <span className="text-red-500">Đã đóng cửa</span>}
                                         </td>
                                         <td className="py-3 px-6 text-center">
                                             <div className="flex item-center justify-center gap-3">
@@ -78,7 +138,29 @@ const BranchListAdminPage = () => {
                                                     Sửa
                                                 </button>
 
-                                                {/* ĐÃ XÓA NÚT THÙNG RÁC TẠI ĐÂY */}
+                                                {branch.isActive === false ? (
+                                                    <button
+                                                        onClick={() => handleTempReopenClick(branch._id)}
+                                                        className="bg-green-100 text-green-600 hover:bg-green-200 hover:text-green-800 py-1 px-3 rounded text-xs font-semibold transition flex items-center gap-1"
+                                                        title="Mở cửa"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                        </svg>
+                                                        Mở cửa
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => handleDeleteClick(branch._id)}
+                                                        className="bg-red-100 text-red-600 hover:bg-red-200 hover:text-red-800 py-1 px-3 rounded text-xs font-semibold transition flex items-center gap-1"
+                                                        title="Xóa chi nhánh"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                        Đóng cửa
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

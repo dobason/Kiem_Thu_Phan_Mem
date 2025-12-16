@@ -25,7 +25,7 @@ const DroneEditPage = () => {
         if (isEditMode) {
             const fetchDrone = async () => {
                 try {
-                    const { data } = await axios.get(`${API_URL}/api/delivery/drones/${id}`);
+                    const { data } = await axios.get(`${API_URL}/api/delivery/${id}`);
                     setName(data.name);
                     setStatus(data.status);
                     setBattery(data.battery);
@@ -52,10 +52,10 @@ const DroneEditPage = () => {
             };
 
             if (isEditMode) {
-                await axios.put(`${API_URL}/api/delivery/drones/${id}`, droneData);
+                await axios.put(`${API_URL}/api/delivery/${id}`, droneData);
                 alert('Cập nhật Drone thành công!');
             } else {
-                await axios.post(`${API_URL}/api/delivery/drones`, droneData);
+                await axios.post(`${API_URL}/api/delivery`, droneData);
                 alert('Tạo Drone mới thành công!');
             }
             navigate('/admin/dronelist');
@@ -126,7 +126,7 @@ const DroneEditPage = () => {
                     </div>
 
                     {/* Cột Phải: Bản đồ chọn vị trí */}
-                    <div>
+                    {/* <div>
                         <label className="block text-gray-700 text-sm font-bold mb-2">
                             Vị Trí Hiện Tại
                         </label>
@@ -139,7 +139,7 @@ const DroneEditPage = () => {
                         <p className="text-xs text-gray-500 text-center">
                             Lat: {location.lat.toFixed(6)}, Lng: {location.lng.toFixed(6)}
                         </p>
-                    </div>
+                    </div> */}
 
                     {/* Nút Submit */}
                     <div className="md:col-span-2 flex items-center justify-between mt-4">

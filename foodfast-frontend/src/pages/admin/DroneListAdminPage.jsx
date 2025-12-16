@@ -16,7 +16,7 @@ const DroneListAdminPage = () => {
     const fetchDrones = async () => {
         try {
             setLoading(true);
-            const { data } = await axios.get(`${API_URL}/api/delivery/drones`);
+            const { data } = await axios.get(`${API_URL}/api/delivery`);
             setDrones(data);
 
             // Check which drones have active orders
@@ -81,7 +81,7 @@ const DroneListAdminPage = () => {
 
         if (window.confirm('Bạn có chắc chắn muốn xóa Drone này?')) {
             try {
-                await axios.delete(`${API_URL}/api/delivery/drones/${id}`);
+                await axios.delete(`${API_URL}/api/delivery/${id}`);
                 fetchDrones();
             } catch (err) {
                 alert('Lỗi khi xóa Drone');

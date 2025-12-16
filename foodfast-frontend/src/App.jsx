@@ -29,6 +29,7 @@ import BranchListAdminPage from './pages/admin/BranchListAdminPage.jsx';
 import BranchEditPage from './pages/admin/BranchEditPage.jsx';
 import DroneListAdminPage from './pages/admin/DroneListAdminPage';
 import DroneEditPage from './pages/admin/DroneEditPage';
+import RevenuePage from './pages/admin/RevenuePage.jsx';
 
 function App() {
     const { userInfo } = useContext(AuthContext);
@@ -134,6 +135,7 @@ function App() {
                     {/* --- ROUTES ADMIN --- */}
                     {/* Thêm route dashboard mặc định để redirect */}
                     <Route path="/admin/dashboard" element={<AdminRoute><OrderListAdminPage /></AdminRoute>} />
+                    <Route path="/admin/statistics" element={<AdminRoute><RevenuePage /></AdminRoute>} />
 
                     <Route path="/admin/orderlist" element={<AdminRoute><OrderListAdminPage /></AdminRoute>} />
                     <Route path="/admin/productlist" element={<AdminRoute><ProductListAdminPage /></AdminRoute>} />

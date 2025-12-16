@@ -164,7 +164,14 @@ const OrderListAdminPage = () => {
                   >
                     <td className="px-6 py-4 font-mono text-gray-900">
                       #{order._id.substring(0, 8)}
+                      <button
+                        className="ml-2 text-blue-600 hover:text-blue-800"
+                        onClick={() => navigator.clipboard.writeText(order._id)}
+                      >
+                        Copy
+                      </button>
                     </td>
+                
                     <td className="px-6 py-4">
                       {new Date(order.createdAt).toLocaleTimeString('vi-VN', {
                         hour: '2-digit',

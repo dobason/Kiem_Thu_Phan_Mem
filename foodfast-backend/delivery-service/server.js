@@ -1,122 +1,270 @@
 ﻿import express from 'express';
-import http from 'http';
-import { Server } from 'socket.io';
-import cors from 'cors';
-import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import dotenv from 'dotenv';
+import cors from 'cors';
+import { Server } from 'socket.io';
+import http from 'http';
 import axios from 'axios';
-import Drone from './src/models/droneModel.js';
+import Drone from './src/models/droneModel.js'; // Đảm bảo đường dẫn model đúng
 import deliveryRoutes from './src/routes/deliveryRoutes.js';
 
 dotenv.config();
 const app = express();
+
 app.use(cors());
 app.use(express.json());
 
-const ORDER_SERVICE_URL = process.env.ORDER_SERVICE_URL || 'http://order-service:3003/api/orders';
+// FORCE REBUILD: 2025-12-15T13:46:00
+// Mount delivery routes AFTER specific routes
+// app.use('/', deliveryRoutes); 
+// MOVED TO BOTTOM
 
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('✅ Delivery DB Connected'))
-    .catch(err => console.log('❌ DB Error:', err));
-
-const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
-
-// Mount Routes
-app.use('/drones', deliveryRoutes);
-
-// --- HÀM HỖ TRỢ TÍNH TOÁN TỌA ĐỘ (QUAN TRỌNG) ---
-// Công thức: Điểm hiện tại = Điểm đầu + (Khoảng cách * % đã đi được)
-const calculatePosition = (start, end, percent) => {
-    return {
-        lat: start.lat + (end.lat - start.lat) * (percent / 100),
-        lng: start.lng + (end.lng - start.lng) * (percent / 100)
-    };
-};
-
-// API 2: Bắt đầu giao hàng
-app.post('/start-delivery', async (req, res) => {
-    // Nhận thêm startLocation và endLocation từ Frontend gửi lên
-    const { orderId, droneId, startLocation, endLocation } = req.body;
-
-    // 1. Validate tọa độ: Nếu frontend không gửi, dùng tọa độ mặc định (Sài Gòn) để không crash app
-    const pointA = startLocation || { lat: 10.7769, lng: 106.7009 }; // Mặc định: Chợ Bến Thành
-    const pointB = endLocation || { lat: 10.8231, lng: 106.6297 };   // Mặc định: Sân bay TSN (Ví dụ)
-
-    let assignedDroneName = "Drone Tự Động";
-    if (droneId) {
-        try {
-            const drone = await Drone.findById(droneId);
-            if (drone) assignedDroneName = drone.name;
-        } catch (e) {
-            assignedDroneName = "Drone " + droneId.slice(-4);
-        }
-    }
-
-    console.log(`🚀 Bắt đầu giao đơn ${orderId}`);
-    console.log(`📍 Lộ trình: Từ [${pointA.lat}, ${pointA.lng}] đến [${pointB.lat}, ${pointB.lng}]`);
-
-    // 2. Gọi sang Order Service để gán Drone (Assign)
+// --- 1. CẤU HÌNH DATABASE ---
+const connectDB = async () => {
     try {
-        await axios.put(`${ORDER_SERVICE_URL}/${orderId}/assign-drone`, {
-            droneId: assignedDroneName
-        });
-        console.log("✅ Đã assign drone cho đơn hàng.");
+        await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/foodfast-db');
+        console.log('✅ Drone Service DB Connected');
     } catch (err) {
-        console.error("⚠️ Không gọi được Order Service:", err.message);
+        console.error('❌ DB Connection Error:', err);
     }
+};
+connectDB();
 
-    res.status(200).json({ message: "Đã kích hoạt Drone bay theo lộ trình!" });
+// --- 2. CẤU HÌNH SOCKET.IO ---
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: { origin: "*", methods: ["GET", "POST"] }
+});
 
-    // 3. LOGIC GIẢ LẬP BAY (Đã sửa thuật toán Vector)
-    let progress = 0;
+// Middleware để dùng io trong route (nếu cần mở rộng sau này)
+app.use((req, res, next) => {
+    req.io = io;
+    next();
+});
 
-    // Tốc độ bay: Cứ mỗi 1.5s thì tăng 5% quãng đường (Bạn có thể chỉnh số này)
-    const speedStep = 5;
-    const intervalTime = 1500;
+// --- 3. CÁC CONST & URL ---
+const ORDER_SERVICE_URL = process.env.ORDER_SERVICE_URL || 'http://localhost:3003';
 
-    const interval = setInterval(async () => {
-        progress += speedStep;
+// Tọa độ giả lập (Demo: Từ Dinh Độc Lập -> Chợ Bến Thành)
+// Trong thực tế: Bạn sẽ truyền tọa độ này từ Frontend lên API /start-delivery
+const RESTAURANT_LOC = { lat: 10.7769, lng: 106.7009 };
+const CUSTOMER_LOC = { lat: 10.7626, lng: 106.6602 };
 
-        // --- THUẬT TOÁN MỚI: NỘI SUY TUYẾN TÍNH ---
-        const currentLocation = calculatePosition(pointA, pointB, progress);
-        // -------------------------------------------
+// --- 4. HÀM TIỆN ÍCH TÍNH KHOẢNG CÁCH (Haversine Formula) ---
+const deg2rad = (deg) => {
+    return deg * (Math.PI / 180);
+}
 
-        const statusToSend = progress < 100 ? 'DELIVERING' : 'DELIVERED';
+const getDistanceFromLatLonInKm = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Bán kính trái đất (km)
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
 
-        // Gửi Socket realtime về cho Client
-        io.to(orderId).emit('status_update', {
-            status: statusToSend,
-            location: currentLocation, // Tọa độ chuẩn xác trên đường thẳng
-            droneId: assignedDroneName,
-            progress: progress
-        });
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
 
-        // Log nhẹ để debug
-        // console.log(`🚁 Bay ${progress}% - Lat: ${currentLocation.lat.toFixed(4)}, Lng: ${currentLocation.lng.toFixed(4)}`);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const d = R * c; // Distance in km
+    return d;
+}
 
-        if (progress >= 100) {
-            clearInterval(interval);
+// --- 5. HÀM MÔ PHỎNG DI CHUYỂN (CORE LOGIC) ---
+const simulateDelivery = (drone, orderId, startLoc, endLoc) => {
+    // A. Tính tổng quãng đường trước khi bay
+    const totalDistanceKm = getDistanceFromLatLonInKm(
+        startLoc.lat, startLoc.lng,
+        endLoc.lat, endLoc.lng
+    );
+
+    console.log(`🚁 [SIMULATION] Drone ${drone.name} xuất phát từ [${startLoc.lat}, ${startLoc.lng}] đến [${endLoc.lat}, ${endLoc.lng}]. Tổng hành trình: ${totalDistanceKm.toFixed(2)} km`);
+
+    let progress = 0; // 0.0 -> 1.0
+    const step = 0.05; // 5% mỗi lần cập nhật (Tốc độ bay)
+
+    const flightInterval = setInterval(async () => {
+        progress += step;
+
+        // Force completion if close to 1 to avoid floating point issues
+        if (progress >= 0.99) progress = 1.0;
+
+        // B. Tính tọa độ hiện tại (Nội suy tuyến tính)
+        const currentLat = startLoc.lat + (endLoc.lat - startLoc.lat) * progress;
+        const currentLng = startLoc.lng + (endLoc.lng - startLoc.lng) * progress;
+
+        // C. Tính toán thông số quãng đường
+        const distanceTraveled = (totalDistanceKm * progress).toFixed(2);
+        const distanceRemaining = Math.max(0, totalDistanceKm - distanceTraveled).toFixed(2);
+
+        // D. Xác định thông báo trạng thái
+        let statusMessage = `Đang di chuyển đến vị trí của bạn`;
+
+        if (progress >= 1) {
+            statusMessage = 'Đang hạ cánh xuống vị trí của bạn...';
+        } else if (Math.abs(progress - 0.5) < 0.01) {
+            statusMessage = `Đang di chuyển đến vị trí của bạn`;
+        }
+
+        // E. Gửi dữ liệu xuống Frontend (chỉ gửi DELIVERING khi chưa >= 1)
+        if (progress < 1) {
+            io.to(orderId).emit('status_update', {
+                status: 'DELIVERING', // Use valid ENUM
+                message: statusMessage,
+                location: { lat: currentLat, lng: currentLng },
+                droneId: drone.name,
+                progress: progress.toFixed(2),
+                stats: {
+                    total: totalDistanceKm.toFixed(2) + ' km',
+                    traveled: distanceTraveled + ' km',
+                    remaining: distanceRemaining + ' km'
+                }
+            });
+        }
+
+        // F. Xử lý khi đến đích (100%)
+        if (progress >= 1) {
+            clearInterval(flightInterval);
+            console.log(`✅ [SIMULATION] Drone ${drone.name} đã hoàn thành đơn ${orderId}!`);
+
+            // 1. Gửi thông báo cuối cùng CHO UI TRƯỚC (Ưu tiên UX)
+            const deliveryData = {
+                status: 'DELIVERED', // Use valid ENUM
+                message: 'Giao hàng thành công! Cảm ơn quý khách.',
+                location: endLoc,
+                droneId: drone.name,
+                progress: 1.0,
+                stats: {
+                    total: totalDistanceKm.toFixed(2) + ' km',
+                    traveled: totalDistanceKm.toFixed(2) + ' km',
+                    remaining: '0.00 km'
+                }
+            };
+            io.to(orderId).emit('status_update', deliveryData);
+
+            // 2. Gọi API cập nhật Order Service (Background)
             try {
-                // Cập nhật trạng thái cuối cùng là DELIVERED
-                await axios.put(`${ORDER_SERVICE_URL}/${orderId}/status`, {
-                    status: 'DELIVERED'
-                });
-                console.log(`🏁 Đơn ${orderId} đã giao thành công tới đích.`);
-            } catch (err) {
-                console.error("❌ Lỗi update status cuối cùng:", err.message);
+                // IMPORTANT: Ensure full absolute URL if using axios serverside causing issues? 
+                // Using configured ORDER_SERVICE_URL (http://order-service:3003)
+                // Remove /api/orders prefix because internal service is mounted at /
+                console.log(`Creating update request to: ${ORDER_SERVICE_URL}/${orderId}/status`);
+                await axios.put(`${ORDER_SERVICE_URL}/${orderId}/status`, { status: 'DELIVERED' });
+                console.log('✅ Order Service updated to DELIVERED');
+            } catch (error) {
+                console.error("❌ Lỗi khi gọi Order Service:", error.message);
+                // Note: UI already notified, so user impact is minimal
+            }
+
+            // 3. Reset Drone: Về trạng thái rảnh + Trừ Pin
+            try {
+                const currentDrone = await Drone.findById(drone._id);
+                if (currentDrone) {
+                    currentDrone.status = 'IDLE';
+                    currentDrone.currentOrderId = null;
+                    // Giả lập trừ 10% pin mỗi chuyến
+                    currentDrone.battery = Math.max(0, currentDrone.battery - 10);
+
+                    const updatedDrone = await currentDrone.save();
+                    io.emit('drone_update', updatedDrone); // Update cho Dashboard Admin
+                    console.log(`-> Drone về trạm sạc. Pin còn: ${updatedDrone.battery}%`);
+                }
+            } catch (error) {
+                console.error("❌ Lỗi khi cập nhật trạng thái Drone:", error.message);
             }
         }
-    }, intervalTime);
+    }, 2000); // Cập nhật mỗi 2 giây
+};
+
+// --- 6. SOCKET CONNECTION ---
+io.on('connection', (socket) => {
+    console.log(`🔌 Client connected: ${socket.id}`);
+
+    // Client join room theo Order ID để nhận tin riêng
+    socket.on('join_order_room', (orderId) => {
+        console.log(`📡 User joined tracking room: ${orderId}`);
+        socket.join(orderId);
+    });
+
+    socket.on('disconnect', () => { });
 });
 
-io.on('connection', (socket) => {
-    console.log('Client connected to socket:', socket.id);
-    socket.on('join_order_room', (id) => {
-        socket.join(id);
-        console.log(`Client joined room: ${id}`);
-    });
+// --- 7. API ROUTES ---
+
+// API ĐIỀU PHỐI GIAO HÀNG (TRIGGER SIMULATION)
+
+app.post('/start-delivery', async (req, res) => {
+    const { orderId, branchId, droneId, startLocation, endLocation } = req.body;
+    console.log(`🚚 [API] Yêu cầu giao hàng. Order: ${orderId}, Branch: ${branchId}, DroneId: ${droneId}`);
+    console.log(`📍 Start: [${startLocation?.lat}, ${startLocation?.lng}], End: [${endLocation?.lat}, ${endLocation?.lng}]`);
+
+    if (!orderId) return res.status(400).json({ message: "Thiếu dữ liệu đầu vào (orderId)" });
+
+    // Validate locations
+    if (!startLocation || !endLocation || !startLocation.lat || !startLocation.lng || !endLocation.lat || !endLocation.lng) {
+        return res.status(400).json({ message: "Thiếu tọa độ xuất phát hoặc điểm đến" });
+    }
+
+    try {
+        let availableDrone;
+
+        if (droneId) {
+            // Nếu có droneId, tìm cụ thể drone đó
+            availableDrone = await Drone.findById(droneId);
+            // Kiểm tra xem drone có hợp lệ không (ví dụ check pin)
+            if (availableDrone && availableDrone.battery <= 20) {
+                return res.status(400).json({ message: "Drone này pin yếu, vui lòng chọn drone khác" });
+            }
+        } else {
+            // Tìm Drone rảnh & còn pin (>20%)
+            // Lưu ý: data mẫu status là 'IDLE', query phải khớp
+            availableDrone = await Drone.findOne({
+                status: 'IDLE',
+                battery: { $gt: 20 }
+            });
+        }
+
+        if (!availableDrone) {
+            return res.status(404).json({ message: "Không tìm thấy Drone khả dụng hoặc pin yếu" });
+        }
+
+        // Cập nhật trạng thái Drone -> Delivering
+        availableDrone.status = 'BUSY'; // Hoặc 'Delivering' nếu muốn, nhưng enum là 'BUSY'
+        availableDrone.currentOrderId = orderId;
+        const savedDrone = await availableDrone.save();
+
+        // Báo cho Admin Dashboard
+        io.emit('drone_update', savedDrone);
+
+        // Gọi Order Service cập nhật trạng thái đơn hàng (Không await để tránh block)
+        // URL phải đúng: http://order-service:3003/:id/status (NO /api/orders prefix)
+        axios.put(`${ORDER_SERVICE_URL}/${orderId}/status`, {
+            status: 'DRONE_ASSIGNED',
+            droneId: savedDrone.name
+        }).catch(e => console.error("⚠️ Lỗi gọi Order Service:", e.message));
+
+        // BẮT ĐẦU MÔ PHỎNG BAY với tọa độ thực tế (Force Number type)
+        simulateDelivery(
+            savedDrone,
+            orderId,
+            { lat: parseFloat(startLocation.lat), lng: parseFloat(startLocation.lng) },
+            { lat: parseFloat(endLocation.lat), lng: parseFloat(endLocation.lng) }
+        );
+
+        res.json({
+            message: "Đã điều phối Drone thành công",
+            drone: savedDrone
+        });
+
+    } catch (error) {
+        console.error("❌ Server Error:", error);
+        res.status(500).json({ message: error.message });
+    }
 });
+
+// --- 8. KHỞI CHẠY SERVER ---
+app.use('/', deliveryRoutes); // Mount general routes last
 
 const PORT = process.env.PORT || 3005;
-server.listen(PORT, () => console.log(`🚀 Delivery Service running on ${PORT}`));
+server.listen(PORT, () => {
+    console.log(`🚀 Drone Delivery Service running on port ${PORT}`);
+});

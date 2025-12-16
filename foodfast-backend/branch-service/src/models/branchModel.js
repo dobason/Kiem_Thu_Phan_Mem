@@ -11,6 +11,10 @@ const branchSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    isActive: {
+        type: Boolean,
+        default: true,
+    },
     // Cấu trúc GeoJSON để lưu trữ tọa độ
     location: {
         type: {

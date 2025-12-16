@@ -4,6 +4,11 @@ import Branch from '../models/branchModel.js';
 // Tạo chi nhánh mới
 export const createBranch = async (req, res) => {
     try {
+        const { name } = req.body;
+        const branchExists = await Branch.findOne({ name });
+        if (branchExists) {
+            return res.status(400).json({ message: 'Tên chi nhánh đã tồn tại' });
+        }
         // Dữ liệu mẫu khi gửi lên:
         // {
         //    "name": "FoodFast Quận 1",
@@ -75,7 +80,14 @@ export const findNearestBranch = async (req, res) => {
 
 export const updateBranch = async (req, res) => {
     try {
-        const { name, address, lat, lng, phoneNumber, operatingHours } = req.body;
+        const { name, address, lat, lng, phoneNumber, operatingHours, isActive } = req.body;
+
+        if (name) {
+            const branchExists = await Branch.findOne({ name, _id: { $ne: req.params.id } });
+            if (branchExists) {
+                return res.status(400).json({ message: 'Tên chi nhánh đã tồn tại' });
+            }
+        }
         const branch = await Branch.findById(req.params.id);
 
         if (branch) {
@@ -83,6 +95,7 @@ export const updateBranch = async (req, res) => {
             branch.address = address || branch.address;
             branch.phoneNumber = phoneNumber || branch.phoneNumber;
             branch.operatingHours = operatingHours || branch.operatingHours;
+            if (isActive !== undefined) branch.isActive = isActive;
 
             // Cập nhật tọa độ nếu có
             if (lat && lng) {
