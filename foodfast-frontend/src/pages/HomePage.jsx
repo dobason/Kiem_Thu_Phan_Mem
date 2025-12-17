@@ -1,30 +1,29 @@
-// src/pages/HomePage.jsx
+// ... imports
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
-import Product from '../components/Product.jsx';       // Import thẻ Product
-import ErrorDisplay from '../components/ErrorDisplay.jsx'; // Import component báo lỗi
-import HeroSection from '../components/HeroSection.jsx';   // Import HeroSection
+import Product from '../components/Product.jsx';
+import ErrorDisplay from '../components/ErrorDisplay.jsx';
+import HeroSection from '../components/HeroSection.jsx';
 
 const HomePage = () => {
-    // Khởi tạo state là mảng rỗng [] để tránh lỗi null
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [searchParams] = useSearchParams(); // Hook để lấy query params
 
     useEffect(() => {
         const fetchProducts = async () => {
             try {
                 setLoading(true);
-                const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/products`);
+                const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+                const response = await axios.get(`${baseUrl}/api/products`);
 
-                // --- ĐÂY LÀ DÒNG QUAN TRỌNG ĐỂ DEBUG ---
+
+                // ... (giữ nguyên logic xử lý data cũ)
                 console.log("🔥 DỮ LIỆU API TRẢ VỀ:", response.data);
 
-                // Logic thông minh: Tự dò tìm mảng sản phẩm
-                // Trường hợp 1: API trả về trực tiếp mảng [Product1, Product2...]
-                // Trường hợp 2: API trả về object { products: [...], page: 1 }
                 let productData = [];
-
                 if (Array.isArray(response.data)) {
                     productData = response.data;
                 } else if (response.data && Array.isArray(response.data.products)) {
@@ -46,24 +45,45 @@ const HomePage = () => {
         fetchProducts();
     }, []);
 
-    // Hiển thị loading (Tùy chọn: Có thể thêm spinner xoay xoay ở đây)
+    // --- LOGIC LỌC SẢN PHẨM (Client-side) ---
+    const filteredProducts = products.filter(product => {
+        const searchTerm = searchParams.get('search')?.toLowerCase() || '';
+        const minPrice = parseInt(searchParams.get('minPrice')) || 0;
+        const maxPrice = parseInt(searchParams.get('maxPrice')) || Infinity;
+        const categoryQuery = searchParams.get('category')?.toLowerCase() || '';
+
+        // 1. Lọc theo tên hoặc mô tả
+        const matchesSearch =
+            (product.name?.toLowerCase().includes(searchTerm) || '') ||
+            (product.description?.toLowerCase().includes(searchTerm) || '');
+
+        // 2. Lọc theo giá
+        const price = product.price || 0;
+        const matchesPrice = price >= minPrice && price <= maxPrice;
+
+        // 3. Lọc theo danh mục (nếu chưa có field category, tạm thời tìm trong name/desc hoặc bỏ qua)
+        // Lưu ý: Nếu backend chưa trả về 'category', logic này sẽ luôn đúng nếu categoryQuery rỗng
+        // Nếu muốn search category chính xác cần check field product.category
+        const matchesCategory = categoryQuery
+            ? (product.category?.toLowerCase().includes(categoryQuery) ||
+                product.name?.toLowerCase().includes(categoryQuery)) // Tìm tạm trong tên nếu chưa có field
+            : true;
+
+        return matchesSearch && matchesPrice && matchesCategory;
+    });
+
+
     if (loading) return <div className="text-center py-10">Đang tải món ngon... 🍔</div>;
 
-    // Hiển thị component lỗi nếu có lỗi
     if (error) {
         return <ErrorDisplay message={error} />;
     }
 
     return (
         <div className="bg-white min-h-screen">
-
-            {/* 1. Thêm HeroSection (banner) ở đầu trang */}
             <HeroSection />
 
-            {/* 2. Container cho phần nội dung còn lại */}
             <div className="container mx-auto p-4 md:p-8">
-
-                {/* Tiêu đề trang */}
                 <div className="text-center mb-10 md:mb-12">
                     <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-orange-700 leading-tight mb-6">
                         Thực Đơn Của Chúng Tôi
@@ -71,13 +91,20 @@ const HomePage = () => {
                     <p className="text-lg text-gray-600">
                         Khám phá các món ăn 🍔 và đồ uống 🥤 tuyệt vời nhất.
                     </p>
+                    {/* Hiển thị thông báo kết quả tìm kiếm */}
+                    {(searchParams.toString() !== '') && (
+                        <p className="mt-4 text-sm text-gray-500 italic">
+                            Kết quả tìm kiếm cho:
+                            {searchParams.get('search') && <span className="font-bold"> "{searchParams.get('search')}" </span>}
+                            {searchParams.get('category') && <span> Danh mục "{searchParams.get('category')}" </span>}
+                            ({filteredProducts.length} kết quả)
+                        </p>
+                    )}
                 </div>
 
-                {/* 3. Lưới hiển thị sản phẩm */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    {/* --- ĐIỀU KIỆN AN TOÀN: Chỉ chạy map khi products CHẮC CHẮN là mảng --- */}
-                    {Array.isArray(products) && products.length > 0 ? (
-                        products.map((product) => (
+                    {Array.isArray(filteredProducts) && filteredProducts.length > 0 ? (
+                        filteredProducts.map((product) => (
                             <Product key={product._id} product={product} />
                         ))
                     ) : (
