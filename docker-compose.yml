@@ -29,8 +29,10 @@ services:
       - "3001:3001"
     environment:
       - PORT=3001
-      - MONGO_URI=mongodb+srv://admin:123456.@cluster0.edqk6c9.mongodb.net/foodfast-user-service?appName=Cluster0
-      - JWT_SECRET=${JWT_SECRET}
+      - MONGO_URI=mongodb://admin:123456.@mongo_db:27017/foodfast-user-service?authSource=admin
+      - JWT_SECRET=${JWT_SECRET} # Đã chuyển xuống đây
+    depends_on:
+      - mongo
     networks:
       - foodfast-network
 
@@ -43,8 +45,10 @@ services:
       - "3002:3002"
     environment:
       - PORT=3002
-      - MONGO_URI=mongodb+srv://admin:123456.@cluster0.edqk6c9.mongodb.net/foodfast-product-service?appName=Cluster0
-      - JWT_SECRET=${JWT_SECRET}
+      - MONGO_URI=mongodb://admin:123456.@mongo_db:27017/foodfast-product-service?authSource=admin
+      - JWT_SECRET=${JWT_SECRET} # Đã chuyển xuống đây
+    depends_on:
+      - mongo
     networks:
       - foodfast-network
 
@@ -57,11 +61,12 @@ services:
       - "3003:3003"
     environment:
       - PORT=3003
-      - MONGO_URI=mongodb+srv://admin:123456.@cluster0.edqk6c9.mongodb.net/foodfast-order-service?appName=Cluster0
+      - MONGO_URI=mongodb://admin:123456.@mongo_db:27017/foodfast-order-service?authSource=admin
       - JWT_SECRET=${JWT_SECRET}
       - PRODUCT_SERVICE_URL=http://product-service:3002
     depends_on:
       - product-service
+      - mongo
     networks:
       - foodfast-network
 
@@ -74,10 +79,11 @@ services:
       - "3004:3004"
     environment:
       - PORT=3004
-      - MONGO_URI=mongodb+srv://admin:123456.@cluster0.edqk6c9.mongodb.net/foodfast-payment-service?appName=Cluster0
+      - MONGO_URI=mongodb://admin:123456.@mongo_db:27017/foodfast-payment-service?authSource=admin
       - ORDER_SERVICE_URL=http://order-service:3003
     depends_on:
       - order-service
+      - mongo
     networks:
       - foodfast-network
 
@@ -90,39 +96,59 @@ services:
       - "3005:3005"
     environment:
       - PORT=3005
-      - MONGO_URI=mongodb+srv://admin:123456.@cluster0.edqk6c9.mongodb.net/foodfast-delivery-service?appName=Cluster0
+      - MONGO_URI=mongodb://admin:123456.@mongo_db:27017/foodfast-delivery-service?authSource=admin
       - ORDER_SERVICE_URL=http://order-service:3003
     depends_on:
       - order-service
+      - mongo
     networks:
       - foodfast-network
 
   # 7. BRANCH SERVICE
   branch-service:
-    build: 
+    build:
       context: ./foodfast-backend/branch-service
     container_name: branch-service
     ports:
       - "3006:3006"
     environment:
       - PORT=3006
-      - MONGO_URI=mongodb+srv://admin:123456.@cluster0.edqk6c9.mongodb.net/foodfast-branch-service?appName=Cluster0
+      - MONGO_URI=mongodb://admin:123456.@mongo_db:27017/foodfast-branch-service?authSource=admin
+    depends_on:
+      - mongo
     networks:
       - foodfast-network
-# 8. FRONTEND (Bổ sung thêm để chạy web)
+
+  # 8. LOCAL MONGODB
+  mongo:
+    image: mongo:latest
+    container_name: mongo_db
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=123456.
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - foodfast-network
+
+  # 9. FRONTEND
   frontend:
     build:
       context: ./foodfast-frontend
     container_name: foodfast-frontend
     ports:
-      - "5173:5173"  # Port mặc định của Vite
+      - "5173:5173"
     volumes:
       - ./foodfast-frontend:/app
-      - /app/node_modules  # Prevent overwriting node_modules
+      - /app/node_modules
     networks:
       - foodfast-network
 
+volumes:
+  mongo_data:
+
 networks:
-  foodfast-network: 
+  foodfast-network:
     driver: bridge
-  

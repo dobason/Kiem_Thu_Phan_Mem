@@ -15,7 +15,8 @@ const ProductDetailPage = () => {
         const fetchProduct = async () => {
             setLoading(true);
             try {
-                const response = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/products/${id}`);
+                const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+                const response = await axios.get(`${baseUrl}/api/products/${id}`);
                 setProduct(response.data);
             } catch (err) {
                 setError('Không thể tải dữ liệu sản phẩm.');
@@ -50,7 +51,7 @@ const ProductDetailPage = () => {
                     <h1 className="text-4xl font-bold my-3">{product.name}</h1>
                     <p className="text-gray-600 leading-relaxed">{product.description}</p>
                     <p className="text-4xl font-bold text-indigo-600 my-4">
-                        {product.price.toLocaleString('vi-VN')} VNĐ
+                        {product.price?.toLocaleString('vi-VN')} VNĐ
                     </p>
                     <button
                         onClick={handleAddToCart}
