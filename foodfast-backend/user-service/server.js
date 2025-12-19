@@ -15,7 +15,7 @@ mongoose.connect(process.env.MONGO_URI)
     .catch((err) => console.error('❌ Could not connect to MongoDB:', err));
 
 // Routes
-app.use('/', userRoutes);
+app.use('/api/users', userRoutes);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

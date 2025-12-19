@@ -19,11 +19,11 @@ mongoose
     .catch((err) => console.error('Could not connect to MongoDB', err));
 
 // --- CẤU HÌNH QUAN TRỌNG: TĂNG GIỚI HẠN NHẬN DỮ LIỆU LÊN 50MB ---
-app.use(express.json({ limit: '50mb' })); 
+app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // ---------------------------------------------------------------
 
-app.use('/', productRoutes);
+app.use('/api/products', productRoutes);
 
 const PORT = process.env.PORT || 3002;
 app.listen(PORT, () => {

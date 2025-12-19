@@ -8,7 +8,7 @@ import mongoose from 'mongoose';
 // --- SỬA ĐƯỜNG DẪN IMPORT (Nếu file của bạn nằm ở src/config/db.js thì dùng dòng này) ---
 // Nếu bạn không có file db.js riêng, có thể kết nối trực tiếp trong này như bên dưới
 // import connectDB from './src/config/db.js'; 
-import orderRoutes from './src/routes/orderRoutes.js'; 
+import orderRoutes from './src/routes/orderRoutes.js';
 
 dotenv.config();
 
@@ -22,7 +22,7 @@ mongoose.connect(process.env.MONGO_URI)
 app.use(cors());
 
 // --- CẤU HÌNH QUAN TRỌNG: TĂNG GIỚI HẠN NHẬN DỮ LIỆU LÊN 50MB (Để nhận ảnh) ---
-app.use(express.json({ limit: '50mb' })); 
+app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // ---------------------------------------------------------------
 
@@ -69,8 +69,8 @@ io.on('connection', (socket) => {
 });
 
 // --- ROUTES ---
-// Lưu ý: Gateway đã cắt '/api/orders' rồi, nên ở đây dùng '/' là đúng
-app.use('/', orderRoutes);
+// Lưu ý: Gateway đã cắt '/api/orders' rồi, nên ở đây dùng '/api/orders' là đúng
+app.use('/api/orders', orderRoutes);
 
 app.get('/', (req, res) => {
     res.send('API Order Service is running...');

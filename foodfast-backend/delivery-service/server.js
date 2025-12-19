@@ -262,7 +262,7 @@ app.post('/start-delivery', async (req, res) => {
 });
 
 // --- 8. KHỞI CHẠY SERVER ---
-app.use('/', deliveryRoutes); // Mount general routes last
+app.use('/api/deliveries', deliveryRoutes); // Mount general routes last
 
 const PORT = process.env.PORT || 3005;
 server.listen(PORT, () => {

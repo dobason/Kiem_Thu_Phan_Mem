@@ -9,7 +9,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use('/', paymentRoutes);
+app.use('/api/payments', paymentRoutes);
 const PORT = process.env.PORT || 3004; // Or 3005 if you changed it
 app.listen(PORT, () => {
     console.log(`🚀 Payment Service is running on http://localhost:${PORT}`);

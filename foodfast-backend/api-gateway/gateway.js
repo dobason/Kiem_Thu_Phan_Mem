@@ -7,18 +7,13 @@ dotenv.config();
 
 const app = express();
 
-// Cho phép CORS cho mọi miền
 app.use(cors());
 
-// Log request để dễ debug
+// Log để xem đường dẫn đi như thế nào
 app.use((req, res, next) => {
-    console.log(`[Gateway] Received request: ${req.method} ${req.originalUrl}`);
+    console.log(`[Gateway] 🟢 Nhận request: ${req.method} ${req.originalUrl}`);
     next();
 });
-
-// --- CẤU HÌNH PROXY ---
-// Lưu ý: KHÔNG ĐƯỢC DÙNG app.use(express.json()) Ở ĐÂY
-// Gateway chỉ chuyển tiếp stream, không parse body.
 
 const services = [
     {
@@ -43,28 +38,23 @@ const services = [
     },
     {
         route: '/api/branches',
-        // Dùng biến môi trường hoặc fallback về container name
         target: process.env.BRANCH_SERVICE_URL || 'http://branch-service:3006',
     },
 ];
 
-// Tạo Proxy cho từng service
+// Tạo Proxy
 services.forEach(({ route, target }) => {
-    const proxyOptions = {
+    app.use(route, createProxyMiddleware({
         target,
         changeOrigin: true,
-        pathRewrite: {
-            [`^${route}`]: '', // Cắt bỏ tiền tố /api/xyz khi gửi đến service con
-        },
-        // Tăng timeout để tránh lỗi khi upload ảnh nặng
-        proxyTimeout: 300000, // 5 phút
+        // QUAN TRỌNG: Đã XÓA pathRewrite.
+        // Gateway sẽ chuyển nguyên xi "/api/products" sang service con.
+        proxyTimeout: 300000,
         timeout: 300000,
-    };
-    app.use(route, createProxyMiddleware(proxyOptions));
+    }));
 });
 
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
-    console.log(`🚀 API Gateway is running on http://localhost:${PORT}`);
+    console.log(`🚀 API Gateway đang chạy tại http://localhost:${PORT}`);
 });
