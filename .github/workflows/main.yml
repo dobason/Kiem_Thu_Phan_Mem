@@ -1,21 +1,33 @@
 ﻿name: Selenium Python Test
 on: [push]
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      # Cập nhật checkout lên v4
+      - uses: actions/checkout@v4
+
+      # Cập nhật setup-python lên v5
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
+
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
+
       - name: Run Tests
-        run: pytest --html=report.html
+        # Thêm continue-on-error để nếu test fail (có bug) thì vẫn chạy bước tiếp theo để xuất báo cáo
+        continue-on-error: true 
+        run: pytest --html=report.html --self-contained-html
+
       - name: Upload Report
-        uses: actions/upload-artifact@v2
+        # SỬA LỖI: Cập nhật lên v4
+        uses: actions/upload-artifact@v4
         with:
           name: test-report
           path: report.html
+          # Giữ lại artifact trong 30 ngày (tùy chọn)
+          retention-days: 30
